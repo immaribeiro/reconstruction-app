@@ -32,6 +32,16 @@ class CostCategoryRead(BaseModel):
 class CostCategoryReadWithArticles(CostCategoryRead):
     articles: List["CostArticleRead"] = [] # Forward reference
 
+class CostArticleCreate(BaseModel):
+    category_id: int
+    name: str
+    total_budgeted_amount: Optional[float] = None
+
+class CostArticleUpdate(BaseModel):
+    category_id: Optional[int] = None
+    name: Optional[str] = None
+    total_budgeted_amount: Optional[float] = None
+
 class CostArticleRead(BaseModel):
     id: int
     category_id: int
