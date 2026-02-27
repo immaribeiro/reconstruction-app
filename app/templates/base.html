@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>House Reconstruction Management</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- htmx CDN -->
+    <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuCgxIP9QAxSg3-fQDaQuiHWtRmAOXNvrSNprfEik4YGeP3FhkmgsQR" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/json-enc.js"></script>
+    <style>
+        /* Custom dark mode styles or overrides */
+        body {
+            @apply bg-gray-900 text-gray-100;
+        }
+        /* You can add more specific dark mode styles here */
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans leading-normal tracking-normal">
+    <nav class="bg-gray-800 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="/" class="text-white text-2xl font-bold">🏠 House Reconstruction Management</a>
+            <div class="space-x-4">
+                <a href="/" class="text-gray-300 hover:text-white">Dashboard</a>
+                <a href="/history" class="text-gray-300 hover:text-white">History</a>
+                <a href="/reminders" class="text-gray-300 hover:text-white">Reminders</a>
+                <a href="/costs" class="text-gray-300 hover:text-white">Costs</a>
+                <a href="/settings" class="text-gray-300 hover:text-white">Settings</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-4 p-4">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
