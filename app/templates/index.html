@@ -1,13 +1,106 @@
 {% extends "base.html" %}
-
+{% block title %}Dashboard{% endblock %}
 {% block content %}
-<h1 class="text-3xl font-bold mb-4">Dashboard</h1>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <!-- Placeholder for cards -->
-    <div class="bg-gray-800 p-4 rounded-lg shadow">Reminders Card</div>
-    <div class="bg-gray-800 p-4 rounded-lg shadow">Mental Log Card</div>
-    <div class="bg-gray-800 p-4 rounded-lg shadow">Food Log Card</div>
-    <div class="bg-gray-800 p-4 rounded-lg shadow">Training Card</div>
-    <div class="bg-gray-800 p-4 rounded-lg shadow">Costs Summary Card</div>
+<div id="dashboard" hx-get="/api/dashboard/overview" hx-trigger="load" hx-headers='{"X-API-Key": "reconstruction-app-secret-2026"}' hx-swap="innerHTML">
+    <div class="text-center py-12 text-gray-500">A carregar...</div>
 </div>
+
+<template id="dashboard-template">
+    <!-- Summary cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-gray-400 text-xs uppercase mb-1">Total Gasto</div>
+            <div class="text-2xl font-bold text-red-400" id="total-spent">-</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-gray-400 text-xs uppercase mb-1">Com Fatura</div>
+            <div class="text-2xl font-bold text-green-400" id="total-invoiced">-</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-gray-400 text-xs uppercase mb-1">Sem Fatura</div>
+            <div class="text-2xl font-bold text-yellow-400" id="total-not-invoiced">-</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-gray-400 text-xs uppercase mb-1">Lembretes</div>
+            <div class="text-2xl font-bold text-blue-400" id="pending-reminders">-</div>
+        </div>
+    </div>
+
+    <!-- Category breakdown -->
+    <h2 class="text-lg font-semibold text-amber-400 mb-4">📊 Custos por Categoria</h2>
+    <div class="space-y-3 mb-8" id="categories-list"></div>
+
+    <!-- Recent transactions -->
+    <h2 class="text-lg font-semibold text-amber-400 mb-4">🕐 Transações Recentes</h2>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="text-gray-400 text-xs uppercase border-b border-gray-700">
+                <tr>
+                    <th class="text-left py-2 px-3">Data</th>
+                    <th class="text-left py-2 px-3">Categoria</th>
+                    <th class="text-left py-2 px-3">Artigo</th>
+                    <th class="text-right py-2 px-3">Valor</th>
+                    <th class="text-center py-2 px-3">Pagamento</th>
+                    <th class="text-center py-2 px-3">Fatura</th>
+                </tr>
+            </thead>
+            <tbody id="recent-txns" class="divide-y divide-gray-800"></tbody>
+        </table>
+    </div>
+</template>
+
+<script>
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.target.id !== 'dashboard') return;
+    try {
+        const data = JSON.parse(evt.detail.xhr.responseText);
+        const tpl = document.getElementById('dashboard-template').content.cloneNode(true);
+
+        // Summary
+        tpl.getElementById('total-spent').textContent = '€' + data.total_spent.toLocaleString('pt-PT', {minimumFractionDigits: 2});
+        tpl.getElementById('total-invoiced').textContent = '€' + data.total_invoiced.toLocaleString('pt-PT', {minimumFractionDigits: 2});
+        tpl.getElementById('total-not-invoiced').textContent = '€' + data.total_not_invoiced.toLocaleString('pt-PT', {minimumFractionDigits: 2});
+        tpl.getElementById('pending-reminders').textContent = data.pending_reminders;
+
+        // Categories
+        const catList = tpl.getElementById('categories-list');
+        data.categories.forEach(cat => {
+            const pct = cat.budgeted ? Math.min(100, (cat.spent / cat.budgeted * 100)) : 0;
+            const color = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-yellow-500' : 'bg-green-500';
+            catList.innerHTML += `
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-medium">${cat.name}</span>
+                        <span class="text-amber-400 font-bold">€${cat.spent.toLocaleString('pt-PT', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    ${cat.budgeted ? `
+                    <div class="w-full bg-gray-700 rounded-full h-2 mb-1">
+                        <div class="${color} h-2 rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="text-xs text-gray-500">Orçamentado: €${cat.budgeted.toLocaleString('pt-PT', {minimumFractionDigits: 2})} · ${cat.articles} artigos</div>
+                    ` : `<div class="text-xs text-gray-500">${cat.articles} artigos · ${cat.invoiced ? '€' + cat.invoiced.toLocaleString('pt-PT', {minimumFractionDigits: 2}) + ' faturado' : 'sem orçamento definido'}</div>`}
+                </div>`;
+        });
+
+        // Recent transactions
+        const tbody = tpl.getElementById('recent-txns');
+        data.recent_transactions.forEach(txn => {
+            tbody.innerHTML += `
+                <tr class="hover:bg-gray-800/50">
+                    <td class="py-2 px-3">${txn.date}</td>
+                    <td class="py-2 px-3 text-gray-400">${txn.category}</td>
+                    <td class="py-2 px-3">${txn.article}</td>
+                    <td class="py-2 px-3 text-right font-medium">€${txn.amount.toLocaleString('pt-PT', {minimumFractionDigits: 2})}</td>
+                    <td class="py-2 px-3 text-center text-xs">${txn.payment_method}</td>
+                    <td class="py-2 px-3 text-center">${txn.has_invoice ? '✅' : '❌'}</td>
+                </tr>`;
+        });
+
+        evt.detail.target.innerHTML = '';
+        evt.detail.target.appendChild(tpl);
+    } catch(e) {
+        evt.detail.target.innerHTML = '<div class="text-red-400 py-4">Erro ao carregar dashboard</div>';
+    }
+});
+</script>
 {% endblock %}

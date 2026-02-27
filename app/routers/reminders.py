@@ -1,17 +1,16 @@
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel # For API Request/Response Models
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from ..database import get_db # Use get_db for SQLAlchemy sessions
-from ..models import Reminder, ReminderStatus # SQLAlchemy ORM models
+from ..database import get_db
+from ..models import Reminder, ReminderStatus
 from ..auth import get_api_key
-
-from sqlalchemy.orm import Session # Import Session from SQLAlchemy
 
 router = APIRouter(prefix="/reminders", tags=["reminders"], dependencies=[Depends(get_api_key)])
 
-# Pydantic models for request bodies
+
 class ReminderCreate(BaseModel):
     text: str
     due_at: Optional[datetime] = None
@@ -28,60 +27,45 @@ class ReminderRead(BaseModel):
     status: ReminderStatus
     created_at: datetime
     completed_at: Optional[datetime] = None
-
     class Config:
         from_attributes = True
 
-# --- Reminder Endpoints ---
+
 @router.post("/", response_model=ReminderRead, status_code=status.HTTP_201_CREATED)
-def create_reminder(*, reminder: ReminderCreate, db: Session = Depends(get_db)):
-    db_reminder = Reminder(**reminder.model_dump())
-    db.add(db_reminder)
+def create_reminder(data: ReminderCreate, db: Session = Depends(get_db)):
+    r = Reminder(**data.model_dump())
+    db.add(r)
     db.commit()
-    db.refresh(db_reminder)
-    return db_reminder
+    db.refresh(r)
+    return r
 
 @router.get("/", response_model=List[ReminderRead])
-def get_reminders(*, db: Session = Depends(get_db), status: Optional[ReminderStatus] = None):
-    query = db.query(Reminder)
+def list_reminders(db: Session = Depends(get_db), status: Optional[ReminderStatus] = None):
+    q = db.query(Reminder)
     if status:
-        query = query.filter(Reminder.status == status)
-    reminders = query.all()
-    return reminders
-
-@router.get("/{reminder_id}", response_model=ReminderRead)
-def get_reminder(*, db: Session = Depends(get_db), reminder_id: int):
-    reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
-    if not reminder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reminder not found")
-    return reminder
+        q = q.filter(Reminder.status == status)
+    return q.all()
 
 @router.patch("/{reminder_id}", response_model=ReminderRead)
-def update_reminder(*, db: Session = Depends(get_db), reminder_id: int, reminder: ReminderUpdate):
-    db_reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
-    if not db_reminder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reminder not found")
-    
-    reminder_data = reminder.model_dump(exclude_unset=True)
-    for key, value in reminder_data.items():
-        setattr(db_reminder, key, value)
-    
-    # Handle status change to DONE
-    if "status" in reminder_data and reminder_data["status"] == ReminderStatus.DONE:
-        db_reminder.completed_at = datetime.utcnow()
-    elif "status" in reminder_data and reminder_data["status"] != ReminderStatus.DONE:
-        db_reminder.completed_at = None
-
-    db.add(db_reminder)
+def update_reminder(reminder_id: int, data: ReminderUpdate, db: Session = Depends(get_db)):
+    r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    update = data.model_dump(exclude_unset=True)
+    for k, v in update.items():
+        setattr(r, k, v)
+    if "status" in update and update["status"] == ReminderStatus.DONE:
+        r.completed_at = datetime.utcnow()
+    elif "status" in update and update["status"] != ReminderStatus.DONE:
+        r.completed_at = None
     db.commit()
-    db.refresh(db_reminder)
-    return db_reminder
+    db.refresh(r)
+    return r
 
 @router.delete("/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_reminder(*, db: Session = Depends(get_db), reminder_id: int):
-    reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
-    if not reminder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reminder not found")
-    db.delete(reminder)
+def delete_reminder(reminder_id: int, db: Session = Depends(get_db)):
+    r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    db.delete(r)
     db.commit()
-    return {"ok": True}

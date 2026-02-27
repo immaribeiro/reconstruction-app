@@ -2,19 +2,19 @@ from datetime import datetime, date
 from typing import List, Optional
 from enum import Enum
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Boolean, Float, ForeignKey
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Mapped
-from sqlalchemy.sql import func # For default timestamps
+from sqlalchemy import Column, Integer, String, DateTime, Date, Boolean, Float, ForeignKey, Text
+from sqlalchemy.orm import declarative_base, relationship, Mapped
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
-# --- Enum for Reminder Status ---
+
 class ReminderStatus(str, Enum):
     PENDING = "pending"
     DONE = "done"
-    DISMISSED = "disposed"
+    DISMISSED = "dismissed"
 
-# --- Main Models ---
+
 class Reminder(Base):
     __tablename__ = "reminders"
 
@@ -25,78 +25,45 @@ class Reminder(Base):
     created_at: Mapped[datetime] = Column(DateTime, default=func.now(), nullable=False)
     completed_at: Mapped[Optional[datetime]] = Column(DateTime)
 
-class FoodLog(Base):
-    __tablename__ = "foodlogs"
-
-    id: Mapped[int] = Column(Integer, primary_key=True, index=True)
-    description: Mapped[str] = Column(String, nullable=False)
-    meal_type: Mapped[Optional[str]] = Column(String)
-    logged_at: Mapped[datetime] = Column(DateTime, default=func.now(), nullable=False)
-    notes: Mapped[Optional[str]] = Column(String)
-
-class TrainingLog(Base):
-    __tablename__ = "traininglogs"
-
-    id: Mapped[int] = Column(Integer, primary_key=True, index=True)
-    activity: Mapped[str] = Column(String, nullable=False)
-    duration_minutes: Mapped[Optional[int]] = Column(Integer)
-    intensity: Mapped[Optional[str]] = Column(String)
-    logged_at: Mapped[datetime] = Column(DateTime, default=func.now(), nullable=False)
-    notes: Mapped[Optional[str]] = Column(String)
-
-class MentalLog(Base):
-    __tablename__ = "mentallogs"
-
-    id: Mapped[int] = Column(Integer, primary_key=True, index=True)
-    content: Mapped[str] = Column(String, nullable=False)
-    mood: Mapped[Optional[str]] = Column(String)
-    tags: Mapped[Optional[str]] = Column(String)
-    logged_at: Mapped[datetime] = Column(DateTime, default=func.now(), nullable=False)
-
-class DailySummary(Base):
-    __tablename__ = "dailysummaries"
-
-    id: Mapped[int] = Column(Integer, primary_key=True, index=True)
-    entry_date: Mapped[date] = Column(Date, unique=True, index=True, nullable=False)
-    highlight: Mapped[Optional[str]] = Column(String)
-    challenge: Mapped[Optional[str]] = Column(String)
-    energy_level: Mapped[Optional[int]] = Column(Integer)
-    sleep_quality: Mapped[Optional[int]] = Column(Integer)
-    gratitude: Mapped[Optional[str]] = Column(String)
-    tomorrow_focus: Mapped[Optional[str]] = Column(String)
-    created_datetime: Mapped[datetime] = Column(DateTime, default=func.now(), nullable=False)
 
 class CostCategory(Base):
-    __tablename__ = "costcategories"
+    """Top-level grouping: Arquiteto, Empreiteiro, Electricista, etc."""
+    __tablename__ = "cost_categories"
 
     id: Mapped[int] = Column(Integer, primary_key=True, index=True)
     name: Mapped[str] = Column(String, unique=True, index=True, nullable=False)
-    description: Mapped[Optional[str]] = Column(String)
+    description: Mapped[Optional[str]] = Column(Text)
+    budgeted_total: Mapped[Optional[float]] = Column(Float)
 
-    articles: Mapped[List["CostArticle"]] = relationship(back_populates="category")
+    articles: Mapped[List["CostArticle"]] = relationship(back_populates="category", cascade="all, delete-orphan")
+
 
 class CostArticle(Base):
-    __tablename__ = "costarticles"
+    """Line items under a category: Projeto arquitetura, Baixada, Giratória, etc."""
+    __tablename__ = "cost_articles"
 
     id: Mapped[int] = Column(Integer, primary_key=True, index=True)
-    category_id: Mapped[int] = Column(Integer, ForeignKey("costcategories.id"), nullable=False)
+    category_id: Mapped[int] = Column(Integer, ForeignKey("cost_categories.id"), nullable=False)
     name: Mapped[str] = Column(String, nullable=False)
-    total_budgeted_amount: Mapped[Optional[float]] = Column(Float)
+    budgeted_amount: Mapped[Optional[float]] = Column(Float)
+    notes: Mapped[Optional[str]] = Column(Text)
 
     category: Mapped["CostCategory"] = relationship(back_populates="articles")
-    transactions: Mapped[List["CostTransaction"]] = relationship(back_populates="article")
+    transactions: Mapped[List["CostTransaction"]] = relationship(back_populates="article", cascade="all, delete-orphan")
+
 
 class CostTransaction(Base):
-    __tablename__ = "costtransactions"
+    """Individual payments / tranches for an article."""
+    __tablename__ = "cost_transactions"
 
     id: Mapped[int] = Column(Integer, primary_key=True, index=True)
-    article_id: Mapped[int] = Column(Integer, ForeignKey("costarticles.id"), nullable=False)
+    article_id: Mapped[int] = Column(Integer, ForeignKey("cost_articles.id"), nullable=False)
     transaction_date: Mapped[date] = Column(Date, nullable=False)
     phase_number: Mapped[Optional[int]] = Column(Integer)
-    payment_method: Mapped[str] = Column(String, nullable=False)
+    payment_method: Mapped[str] = Column(String, nullable=False)  # Dinheiro, Transferência, MBWay, Multibanco, Serviços
     amount: Mapped[float] = Column(Float, nullable=False)
-    has_invoice: Mapped[bool] = Column(Boolean, nullable=False)
-    notes: Mapped[Optional[str]] = Column(String)
-    created_datetime: Mapped[datetime] = Column(DateTime, default=func.now(), nullable=False)
+    has_invoice: Mapped[bool] = Column(Boolean, default=False, nullable=False)
+    notes: Mapped[Optional[str]] = Column(Text)
+    created_at: Mapped[datetime] = Column(DateTime, default=func.now(), nullable=False)
 
     article: Mapped["CostArticle"] = relationship(back_populates="transactions")
